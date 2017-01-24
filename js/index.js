@@ -10,6 +10,8 @@ window.onload = function() {
   var MINE = 9;
   var FLAG = 10;
 
+  var DEBUG = true;
+
   var grid = createArray(grid_height, grid_width);
   var gameOverText;
 
@@ -38,17 +40,38 @@ window.onload = function() {
 
     for (var x = 0; x < grid_width; x++) {
       for (var y = 0; y < grid_height; y++) {
-        var value = Math.floor(Math.random() * 10);
+
         var tile = game.make.image(0, 0, "unknown");
-        tile.value = value;
         tile.shown = false;
         tile.inputEnabled = true;
         tile.events.onInputDown.add(handler, this);
+        tile.value = 0;
+        tile.gridX = x;
+        tile.gridY = y;
         tile.width = 32;
         tile.height = 32;
 
+        if (DEBUG) {
+          tile.loadTexture(getImage(tile), 0, false);
+          tile.shown = true;
+        }
+
         grid[x][y] = tile;
         group.add(tile);
+      }
+    }
+
+    for (var x = 0; x < grid_width; x++) {
+      for (var y = 0; y < grid_height; y++) {
+        if (Math.random() > 0.9) {
+          addMine(grid[x][y]);
+        }
+      }
+    }
+
+    for (var x = 0; x < grid_width; x++) {
+      for (var y = 0; y < grid_height; y++) {
+        grid[x][y].loadTexture(getImage(grid[x][y]), 0, false);
       }
     }
 
@@ -80,6 +103,37 @@ window.onload = function() {
     }
   }
 
+  function addMine(tile) {
+    tile.value = MINE;
+
+    tile.loadTexture("mine", 0, false);
+
+    var x = tile.gridX;
+    var y = tile.gridY;
+
+    var VALID_LEFT = x - 1 >= 0;
+    var VALID_RIGHT = x + 1 < grid_width;
+    var VALID_TOP = y - 1 >= 0;
+    var VALID_BOTTOM = y + 1 < grid_height;
+
+    if (VALID_LEFT && VALID_TOP)      incrementTile(grid[x-1][y-1]);
+    if (VALID_TOP)                    incrementTile(grid[x]  [y-1]);
+    if (VALID_RIGHT && VALID_TOP)     incrementTile(grid[x+1][y-1]);
+
+    if (VALID_LEFT)                   incrementTile(grid[x-1][y]);
+    if (VALID_RIGHT)                  incrementTile(grid[x+1][y]);
+
+    if (VALID_LEFT && VALID_BOTTOM)   incrementTile(grid[x-1][y+1]);
+    if (VALID_BOTTOM)                 incrementTile(grid[x][y+1]);
+    if (VALID_RIGHT && VALID_BOTTOM)  incrementTile(grid[x+1][y+1]);
+  }
+
+  function incrementTile(tile) {
+    if (tile.value != MINE) {
+      tile.value++;
+    }
+  }
+
   function gameOver() {
     for (var x = 0; x < grid_width; x++) {
       for (var y = 0; y < grid_height; y++) {
@@ -94,17 +148,17 @@ window.onload = function() {
 
   function getImage(tile) {
     switch(tile.value) {
-      case 0:   return "0";
-      case 1:   return "1";
-      case 2:   return "2";
-      case 3:   return "3";
-      case 4:   return "4";
-      case 5:   return "5";
-      case 6:   return "6";
-      case 7:   return "7";
-      case 8:   return "8";
+      case 0:     return "0";
+      case 1:     return "1";
+      case 2:     return "2";
+      case 3:     return "3";
+      case 4:     return "4";
+      case 5:     return "5";
+      case 6:     return "6";
+      case 7:     return "7";
+      case 8:     return "8";
       case MINE:  return "mine";
-      default:  return "unknown";
+      default:    return "unknown";
     }
   }
 
