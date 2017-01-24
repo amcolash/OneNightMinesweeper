@@ -10,7 +10,7 @@ window.onload = function() {
   var MINE = 9;
   var FLAG = 10;
 
-  var DEBUG = true;
+  var DEBUG = false;
 
   var grid = createArray(grid_height, grid_width);
   var gameOverText;
@@ -44,17 +44,12 @@ window.onload = function() {
         var tile = game.make.image(0, 0, "unknown");
         tile.shown = false;
         tile.inputEnabled = true;
-        tile.events.onInputDown.add(handler, this);
+        tile.events.onInputDown.add(clickHandler, this);
         tile.value = 0;
         tile.gridX = x;
         tile.gridY = y;
         tile.width = 32;
         tile.height = 32;
-
-        if (DEBUG) {
-          tile.loadTexture(getImage(tile), 0, false);
-          tile.shown = true;
-        }
 
         grid[x][y] = tile;
         group.add(tile);
@@ -63,15 +58,20 @@ window.onload = function() {
 
     for (var x = 0; x < grid_width; x++) {
       for (var y = 0; y < grid_height; y++) {
-        if (Math.random() > 0.9) {
+        if (Math.random() > 0.8) {
           addMine(grid[x][y]);
         }
       }
     }
 
-    for (var x = 0; x < grid_width; x++) {
-      for (var y = 0; y < grid_height; y++) {
-        grid[x][y].loadTexture(getImage(grid[x][y]), 0, false);
+    if (DEBUG) {
+      for (var x = 0; x < grid_width; x++) {
+        for (var y = 0; y < grid_height; y++) {
+          if (grid[x][y].value > 0) {
+            grid[x][y].loadTexture(getImage(grid[x][y]), 0, false);
+            grid[x][y].shown = true;
+          }
+        }
       }
     }
 
@@ -88,14 +88,20 @@ window.onload = function() {
     gameOverText.position.y = game.height / 2;
   }
 
-  function handler(tile, pointer) {
+  function clickHandler(tile, pointer) {
     if (pointer.leftButton.isDown && !tile.shown) {
-      var image = getImage(tile);
-      tile.loadTexture(image, 0, false);
-      tile.shown = true;
-
       if (tile.value == MINE) {
         gameOver();
+      } else {
+        var queue = [];
+        queue.push(tile);
+
+        while(queue.length > 0) {
+          var t = queue.shift();
+          if (!t.shown) {
+            openTile(t, queue);
+          }
+        }
       }
     } else if (pointer.rightButton.isDown && !tile.shown) {
       tile.hasFlag = !tile.hasFlag;
@@ -103,34 +109,64 @@ window.onload = function() {
     }
   }
 
+  function openTile(tile, queue) {
+    var image = getImage(tile);
+
+    if (tile.value == 0) {
+      var x = tile.gridX;
+      var y = tile.gridY;
+
+      // Add adjacent tiles
+      addTile(x-1, y-1, queue);
+      addTile(x,   y-1, queue);
+      addTile(x+1, y-1, queue);
+
+      addTile(x-1, y, queue);
+      addTile(x+1, y, queue);
+
+      addTile(x-1, y+1, queue);
+      addTile(x,   y+1, queue);
+      addTile(x+1, y+1, queue);
+    }
+
+    tile.loadTexture(image, 0, false);
+    tile.shown = true;
+  }
+
+  function addTile(x, y, queue) {
+    if (x >= 0 && x < grid_width && y >= 0 && y < grid_height) {
+      queue.push(grid[x][y]);
+    }
+  }
+
   function addMine(tile) {
     tile.value = MINE;
 
-    tile.loadTexture("mine", 0, false);
+    if (DEBUG) {
+      tile.loadTexture("mine", 0, false);
+    }
 
     var x = tile.gridX;
     var y = tile.gridY;
 
-    var VALID_LEFT = x - 1 >= 0;
-    var VALID_RIGHT = x + 1 < grid_width;
-    var VALID_TOP = y - 1 >= 0;
-    var VALID_BOTTOM = y + 1 < grid_height;
+    incrementTile(x-1, y-1);
+    incrementTile(x,   y-1);
+    incrementTile(x+1, y-1);
 
-    if (VALID_LEFT && VALID_TOP)      incrementTile(grid[x-1][y-1]);
-    if (VALID_TOP)                    incrementTile(grid[x]  [y-1]);
-    if (VALID_RIGHT && VALID_TOP)     incrementTile(grid[x+1][y-1]);
+    incrementTile(x-1, y);
+    incrementTile(x+1, y);
 
-    if (VALID_LEFT)                   incrementTile(grid[x-1][y]);
-    if (VALID_RIGHT)                  incrementTile(grid[x+1][y]);
-
-    if (VALID_LEFT && VALID_BOTTOM)   incrementTile(grid[x-1][y+1]);
-    if (VALID_BOTTOM)                 incrementTile(grid[x][y+1]);
-    if (VALID_RIGHT && VALID_BOTTOM)  incrementTile(grid[x+1][y+1]);
+    incrementTile(x-1, y+1);
+    incrementTile(x,   y+1);
+    incrementTile(x+1, y+1);
   }
 
-  function incrementTile(tile) {
-    if (tile.value != MINE) {
-      tile.value++;
+  function incrementTile(x, y) {
+    if (x >= 0 && x < grid_width && y >= 0 && y < grid_height) {
+      var tile = grid[x][y];
+      if (tile.value != MINE) {
+        tile.value++;
+      }
     }
   }
 
