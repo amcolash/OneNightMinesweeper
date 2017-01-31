@@ -1,21 +1,32 @@
 window.onload = function() {
 
-  var grid_width = 20;
-  var grid_height = 20;
-  var tile_width = 32;
-  var tile_height = 32;
-  var game_width = ((grid_width + 1) * tile_width) + (grid_width * 3);
-  var game_height = ((grid_height + 1) * tile_height) + (grid_height * 3);
+  var gridWidth = 20;
+  var gridHeight = 20;
+  var tileWidth = 28;
+  var tileHeight = 28;
+  var bottomHeight = tileHeight * 3;
+  var gameWidth = (gridWidth + 2.6)* tileWidth;
+  var gameHeight = (gridHeight + 2) * tileHeight + bottomHeight;
 
   var MINE = 9;
   var FLAG = 10;
 
   var DEBUG = false;
 
-  var grid = createArray(grid_height, grid_width);
-  var gameOverText;
+  var grid = createArray(gridHeight, gridWidth);
+  var timer;
+  var score;
+  var timerText;
+  var scoreText;
+  var endGameText;
+  var restartGroup;
 
-  var game = new Phaser.Game(game_width, game_height, Phaser.AUTO, '', { preload: preload, create: create });
+  var buttonWidth = 140;
+  var buttonHeight = 50;
+
+  var gameEnded;
+
+  var game = new Phaser.Game(gameWidth, gameHeight, Phaser.AUTO, '', { preload: preload, create: create, update: update });
 
   function preload () {
     game.load.image('0', 'img/0.png');
@@ -36,10 +47,14 @@ window.onload = function() {
   function create () {
     game.canvas.oncontextmenu = function (e) { e.preventDefault(); }
 
+    timer = 0;
+    score = 0;
+    gameEnded = false;
+
     var group = game.add.group();
 
-    for (var x = 0; x < grid_width; x++) {
-      for (var y = 0; y < grid_height; y++) {
+    for (var x = 0; x < gridWidth; x++) {
+      for (var y = 0; y < gridHeight; y++) {
 
         var tile = game.make.image(0, 0, "unknown");
         tile.shown = false;
@@ -48,69 +63,126 @@ window.onload = function() {
         tile.value = 0;
         tile.gridX = x;
         tile.gridY = y;
-        tile.width = 32;
-        tile.height = 32;
+        tile.width = tileWidth;
+        tile.height = tileHeight;
 
         grid[x][y] = tile;
         group.add(tile);
       }
     }
 
-    for (var x = 0; x < grid_width; x++) {
-      for (var y = 0; y < grid_height; y++) {
-        if (Math.random() > 0.8) {
+    for (var x = 0; x < gridWidth; x++) {
+      for (var y = 0; y < gridHeight; y++) {
+        if (Math.random() > 0.9) {
           addMine(grid[x][y]);
         }
       }
     }
 
     if (DEBUG) {
-      for (var x = 0; x < grid_width; x++) {
-        for (var y = 0; y < grid_height; y++) {
-          if (grid[x][y].value > 0) {
-            grid[x][y].loadTexture(getImage(grid[x][y]), 0, false);
-            grid[x][y].shown = true;
+      for (var x = 0; x < gridWidth; x++) {
+        for (var y = 0; y < gridHeight; y++) {
+          var tile = grid[x][y];
+
+          if (tile.value != MINE) {
+            tile.loadTexture(getImage(tile), 0, false);
+            tile.shown = true;
           }
         }
       }
     }
 
-    group.align(grid_width, -1, tile_width + 1, tile_height + 1);
-    group.position.x = (game.width - group.width) / 2;
-    group.position.y = (game.height - group.height) / 2;
+    group.align(gridWidth, -1, tileWidth + 1, tileHeight + 1);
+    group.position.x = tileWidth;
+    group.position.y = tileHeight;
 
-    gameOverText = game.add.text(0, 0, '', { fontSize: 64, fill: '#ffffff', stroke: 'black',
-      strokeThickness: 3, align: 'center' });
+    endGameText = game.add.text(group.x + group.width / 2, group.x + group.height / 2, '', { fontSize: 64, fill: '#ffffff',
+      stroke: 'black', strokeThickness: 3, align: 'center' });
+    endGameText.anchor.x = 0.5;
+    endGameText.anchor.y = 0.5;
 
-    gameOverText.anchor.x = 0.5;
-    gameOverText.anchor.y = 0.5;
-    gameOverText.position.x = game.width / 2;
-    gameOverText.position.y = game.height / 2;
+    timerText = game.add.text(game.width / 2, game.height - 2 * tileHeight, 'Time: 0 sec', { fontSize: 24, fill: '#ffffff',
+      stroke: 'black', strokeThickness: 1.5, align: 'center' });
+    timerText.anchor.x = 0.5;
+    timerText.anchor.y = 0.5;
+
+    scoreText = game.add.text(game.width / 2, game.height - 1 * tileHeight, 'Score: 0', { fontSize: 24, fill: '#ffffff',
+      stroke: 'black', strokeThickness: 1.5, align: 'center' });
+    scoreText.anchor.x = 0.5;
+    scoreText.anchor.y = 0.5;
+
+    restartGroup = game.add.group();
+    var restartButton = game.add.button(-buttonWidth / 2, -buttonHeight / 2, 'unknown', restartGame, this, 2, 1, 0);
+    restartButton.width = buttonWidth;
+    restartButton.height = buttonHeight;
+
+    var restartText = game.add.text(0, 0, 'Restart', { fontSize: 24, fill: '#ffffff',
+      stroke: 'black', strokeThickness: 2, align: 'center' });
+    restartText.anchor.x = 0.5;
+    restartText.anchor.y = 0.5;
+
+    restartGroup.add(restartButton);
+    restartGroup.add(restartText);
+
+    restartGroup.x = game.width / 2;
+    restartGroup.y = game.height / 2 + endGameText.height * 0.4;
+  }
+
+  function update() {
+    if (!gameEnded) {
+      timer += (game.time.elapsedMS / 1000);
+
+      timerText.text = 'Time : ' + Math.floor(timer) + ' sec';
+      scoreText.text = 'Score: ' + score;
+    }
+
+    restartGroup.visible = gameEnded;
   }
 
   function clickHandler(tile, pointer) {
-    if (pointer.leftButton.isDown && !tile.shown) {
-      if (tile.value == MINE) {
-        gameOver();
-      } else {
-        var queue = [];
-        queue.push(tile);
+    if (!gameEnded) {
+      if (pointer.leftButton.isDown && !tile.shown) {
+        if (tile.value == MINE) {
+          gameOver(true);
+          return;
+        } else {
+          var queue = [];
+          queue.push(tile);
 
-        while(queue.length > 0) {
-          var t = queue.shift();
-          if (!t.shown) {
-            openTile(t, queue);
+          while(queue.length > 0) {
+            var t = queue.shift();
+            if (!t.shown) {
+              openTile(t, queue);
+            }
+          }
+        }
+      } else if (pointer.rightButton.isDown && !tile.shown) {
+        tile.hasFlag = !tile.hasFlag;
+        tile.loadTexture(tile.hasFlag ? "flag" : "unknown", 0, false);
+      }
+
+      var won = true;
+      for (var x = 0; x < gridWidth; x++) {
+        for (var y = 0; y < gridHeight; y++) {
+          if (grid[x][y].value != MINE && !grid[x][y].shown) {
+            won = false;
           }
         }
       }
-    } else if (pointer.rightButton.isDown && !tile.shown) {
-      tile.hasFlag = !tile.hasFlag;
-      tile.loadTexture(tile.hasFlag ? "flag" : "unknown", 0, false);
+
+      if (won) {
+        gameOver(false);
+        return;
+      }
     }
   }
 
   function openTile(tile, queue) {
     var image = getImage(tile);
+
+    if (tile.value != MINE) {
+      score += tile.value;
+    }
 
     if (tile.value == 0) {
       var x = tile.gridX;
@@ -134,17 +206,13 @@ window.onload = function() {
   }
 
   function addTile(x, y, queue) {
-    if (x >= 0 && x < grid_width && y >= 0 && y < grid_height) {
+    if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
       queue.push(grid[x][y]);
     }
   }
 
   function addMine(tile) {
     tile.value = MINE;
-
-    if (DEBUG) {
-      tile.loadTexture("mine", 0, false);
-    }
 
     var x = tile.gridX;
     var y = tile.gridY;
@@ -162,7 +230,7 @@ window.onload = function() {
   }
 
   function incrementTile(x, y) {
-    if (x >= 0 && x < grid_width && y >= 0 && y < grid_height) {
+    if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
       var tile = grid[x][y];
       if (tile.value != MINE) {
         tile.value++;
@@ -170,16 +238,21 @@ window.onload = function() {
     }
   }
 
-  function gameOver() {
-    for (var x = 0; x < grid_width; x++) {
-      for (var y = 0; y < grid_height; y++) {
+  function gameOver(lost) {
+    for (var x = 0; x < gridWidth; x++) {
+      for (var y = 0; y < gridHeight; y++) {
         var tile = grid[x][y];
         var image = getImage(tile);
         tile.loadTexture(image, 0, false);
       }
     }
 
-    gameOverText.text = 'Game Over!';
+    gameEnded = true;
+    endGameText.text = lost ? 'Game Over!' : 'You Won!';
+  }
+
+  function restartGame() {
+    game.state.restart();
   }
 
   function getImage(tile) {
